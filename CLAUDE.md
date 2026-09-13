@@ -119,7 +119,7 @@ LOKI_PROVIDER=codex loki start ./prd.md
 5. Mock-integrity detector (HIGH blocks)
 6. Test-mutation detector (HIGH blocks)
 7. Documentation coverage
-8. Magic Modules debate (BLOCK severity)
+8. Magic Modules debate (ADVISORY by default on both routes; bash enforces only with `LOKI_GATE_MAGIC_DEBATE_BLOCKING=true`, Bun self-skips unless `LOKI_GATE_MAGIC_DEBATE="true"`)
 
 Conditional auditor (not numbered): Backward-compatibility / legacy-healing-auditor (healing mode only - behavioral preservation, v6.67.0).
 
