@@ -50,6 +50,22 @@ never referenced.
 - **The README promised an install that doctor rejects.** It said an API key was
   enough while `doctor` marks jq and Node.js required and fails without them.
 
+- **The dashboard local-caller check failed open on a forwarded value.**
+  `_real_client_host` substitutes the left-most `X-Forwarded-For` entry when the
+  peer is a trusted proxy, and `_is_local_caller` then treated any host it could
+  not parse as an IP as local. A caller behind a trusted proxy could therefore
+  pass the local check by sending a non-IP token, and `unknown` is a literal
+  some proxies emit when the client address is unavailable, so this was
+  reachable without an attacker choosing the value. The direct-peer leniency is
+  deliberate and unchanged: ASGI test transports report `testclient` and UDS
+  transports report socket names. Only the forwarded path now fails closed, at
+  both the HTTP and websocket boundaries.
+
+  Scope, measured rather than asserted: `LOKI_TRUSTED_PROXIES` appears in no
+  deploy artifact, so the substitution only happens for an operator who set it.
+  But `dashboard/Dockerfile` does ship `LOKI_DASHBOARD_HOST=0.0.0.0`, so the
+  container is not loopback-only and the boundary carries real weight.
+
 ### Removed
 
 - 38 modules under `web-app/src` unreachable from `main.tsx`, including
