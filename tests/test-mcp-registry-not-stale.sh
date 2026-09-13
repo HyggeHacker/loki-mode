@@ -21,14 +21,28 @@
 # and whenever the registry has an outage, and none of those are defects in this
 # repository. It is written for a scheduled workflow and for manual use.
 #
-# EXIT CODES, so a caller can distinguish the three outcomes:
-#   0  in sync, or the registry is unreachable (UNKNOWN is not a failure)
-#   1  drift confirmed: the registry serves an older version than VERSION
+# ADVISORY BY DEFAULT, and that default is load-bearing.
+#
+# Drift here is closable ONLY by a human with registry publisher credentials.
+# A red that no engineer working in this repository can clear is the thing that
+# teaches people to ignore reds, so the default path REPORTS drift and exits 0.
+# This follows tests/test-model-catalog-staleness.sh, which reports external
+# data going stale "WITHOUT ever changing an exit code" and names that invariant
+# advisory. Same shape: external state we do not control.
+#
+# I learned this the expensive way. The first version of this guard exited 1 on
+# drift and was registered in run-all-tests.sh, which .github/workflows/test.yml
+# runs in every shard on every push. It turned a publishing gap nobody in the
+# repo could fix into a failing Tests run (93989130, shard 1, the only failure
+# in that shard).
+#
+# EXIT CODES:
+#   0  in sync, unreachable, OR drift in advisory mode (the default)
+#   1  drift, ONLY when LOKI_MCP_REGISTRY_STRICT=1 asks for a hard signal
 #   2  a local precondition is broken (missing VERSION, unparseable server.json)
 #
-# Unreachable exits 0 deliberately. A guard that reddens on someone else's
-# outage trains readers to ignore it, and this one is advisory: it reports a
-# publishing gap that only a human with registry credentials can close.
+# The nightly parity-drift workflow sets STRICT so it can branch on rc and open
+# an issue. Nothing on the push path sets it.
 
 set -uo pipefail
 
@@ -162,4 +176,11 @@ else
 fi
 
 printf '\nTotal: %d  Passed: %d  Failed: %d\n' "$((PASS + FAIL))" "$PASS" "$FAIL"
-exit 1
+
+# Advisory unless a caller explicitly asks for a hard signal. See the header:
+# only a credential holder can close this, so the push path must not go red.
+if [ "${LOKI_MCP_REGISTRY_STRICT:-0}" = "1" ]; then
+    exit 1
+fi
+printf 'NOTE: advisory mode -- reporting drift without failing. Set LOKI_MCP_REGISTRY_STRICT=1 for a hard signal.\n'
+exit 0
