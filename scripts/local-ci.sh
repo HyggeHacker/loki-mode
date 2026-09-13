@@ -253,6 +253,16 @@ declare -a _FAST_KEEP=(
   "tests/test_effort_estimate.py"
   "tests/test_bench_"
   "tests/dashboard/test_proofs_routes.py"
+  # The local-caller boundary must fail CLOSED on a forwarded value it cannot
+  # parse. _is_local_caller treats an unparseable host as local, which is
+  # correct for a DIRECT peer (ASGI reports "testclient", UDS reports names)
+  # and was a fail-open for a value that arrived in an X-Forwarded-For header:
+  # any caller behind a trusted proxy could pass the local check by sending a
+  # non-IP token, and "unknown" is a literal real proxies emit. The blanket
+  # pytest run is DEFERRED in this tier and the other two dashboard auth
+  # suites are deferred too, so without this entry the guard would never run
+  # before a push. Measured 0.4s.
+  "tests/dashboard/test_forwarded_host_fails_closed.py"
   "tests/cli/test-proof-command.sh"
   "tests/test-evidence-gate"
   "tests/test-evidence-boot-axis.sh"
@@ -761,6 +771,7 @@ fi
 # Dashboard proof routes need fastapi (python3.12 only).
 if command -v python3.12 >/dev/null 2>&1; then
   run_check_pyfile "tests/dashboard/test_proofs_routes.py (R1 proof routes + traversal)" "python3.12 -m pytest -q tests/dashboard/test_proofs_routes.py 2>&1 | tail -5"
+  run_check_pyfile "tests/dashboard/test_forwarded_host_fails_closed.py (local-caller boundary fails closed)" "python3.12 -m pytest -q tests/dashboard/test_forwarded_host_fails_closed.py 2>&1 | tail -5"
   # v7.34.0 Phase 1: /api/status surfaces claude_session_id from claude-session.json.
   run_check_pyfile "tests/dashboard/test_claude_session_status.py (v7.34.0 claude_session_id)" "python3.12 -m pytest -q tests/dashboard/test_claude_session_status.py 2>&1 | tail -5"
 else
