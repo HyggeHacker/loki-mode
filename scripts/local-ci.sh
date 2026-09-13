@@ -263,6 +263,15 @@ declare -a _FAST_KEEP=(
   # suites are deferred too, so without this entry the guard would never run
   # before a push. Measured 0.4s.
   "tests/dashboard/test_forwarded_host_fails_closed.py"
+  # Two more SECURITY boundary suites that had a run_check call site and no keep
+  # entry, so the fast tier deferred both and neither ran before a push. That is
+  # the same half-registration that shipped an orphaned guard earlier today:
+  # _FAST_KEEP membership alone does nothing, and a call site alone is deferred.
+  # An auth-boundary suite that no pre-push gate runs is indistinguishable from
+  # one that does not exist. Measured on this machine: tenant isolation 0.86s
+  # (20 tests), OIDC RBAC 0.40s (17 tests).
+  "tests/dashboard/test_tenant_isolation.py"
+  "tests/dashboard/test_oidc_rbac_mapping.py"
   "tests/cli/test-proof-command.sh"
   "tests/test-evidence-gate"
   "tests/test-evidence-boot-axis.sh"
