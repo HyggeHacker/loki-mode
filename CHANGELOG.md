@@ -5,6 +5,82 @@ All notable changes to Loki Mode will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v9.49.4
+
+Mostly a deletion release. 4,794 lines removed against 905 added, because the
+largest item is code that could never run: 38 web-app modules unreachable from
+the app entry point, including a complete deploy-connections page the router
+never referenced.
+
+### Fixed
+
+- **A toggle reported a quality gate as enabled while the gate skipped itself.**
+  `readToggles` registered `flag("LOKI_GATE_MAGIC_DEBATE", true)`, so with the
+  variable unset the orchestrator recorded magic_debate as ENABLED, while the
+  gate body short-circuits to pass unless the value is exactly `"true"`. Unset,
+  `""` and `"1"` all disagreed; `"1"` is the sharp case, because `flag()`
+  accepts it as true and the gate does not. The toggle now uses the gate body's
+  own predicate. No gate outcome changes: every value that skipped still skips.
+  Checked across every other gate in `readToggles` and this was a singleton,
+  not a family.
+
+- **The receipt verifier and generator disagreed about what a receipt meant.**
+  `proof-verify.py` defined `_is_exogenous` and never called it, while the
+  generator filters by it. A failed ADVISORY gate therefore read VERIFIED to the
+  generator and NOT VERIFIED to the verifier, so `loki proof verify` told users
+  an honest receipt "was edited to misrepresent the facts". Demonstrated on a
+  receipt fixture through both real code paths before the fix, and both now
+  agree on all five cases.
+
+- **A test bound could not scale with the call it measured.** The speculative
+  devils-advocate assertion used a bare `elapsed_ms < 6000` while the call it
+  measures is dispatched with a budget this suite scales 4x on a sharded runner.
+  A first attempt scaled the bound by that budget; an adversarial reviewer
+  showed that permitted a 10s regression, and measuring settled it: the call is
+  concurrent and completes in 1498ms regardless of budget. The bound now scales
+  by the shard factor only, and the comment states the ceiling that remains.
+
+- **Documentation claimed a gate blocks when it is advisory on both routes.**
+  Five places, including a competitor-comparison document, listed the Magic
+  Modules Debate gate as "Yes (BLOCK severity)". bash enforces it only with
+  `LOKI_GATE_MAGIC_DEBATE_BLOCKING=true`; the Bun route self-skips unless the
+  env var is exactly `"true"`. The in-code comment records why it was made
+  advisory: 3 of 4 personas returned block on a deliberately thorough spec.
+
+- **The README promised an install that doctor rejects.** It said an API key was
+  enough while `doctor` marks jq and Node.js required and fails without them.
+
+### Removed
+
+- 38 modules under `web-app/src` unreachable from `main.tsx`, including
+  `pages/ConnectionsPage.tsx`, which rendered a complete deploy-connections
+  panel that the router imported zero times, so the route fell through the SPA
+  catch-all to NotFoundPage. The set was confirmed by extracting the previous
+  commit into a clean directory and checking the guard names exactly the deleted
+  modules, with neither over- nor under-reach.
+
+### Added
+
+- `tests/test-web-app-no-orphan-components.sh`: every module under
+  `web-app/src` must be reachable from the entry point. Deleted and unreachable
+  code is invisible to every other gate, so nothing else in CI could see this
+  class.
+- `tests/test-readme-lists-required-tools.sh`: every tool `doctor` marks
+  required must appear in the README prerequisites. Demonstrated by adding a
+  sixth required tool to doctor and watching the guard go red.
+- `loki-ts/tests/magic-debate-toggle-agreement.test.ts`: the toggle and the gate
+  body must agree for unset, `""`, `"true"`, `"1"` and `"false"`. It asserts the
+  two real predicates against each other rather than a hardcoded table.
+
+### Changed
+
+- Security coverage is now asserted per artifact rather than by count. A
+  `[ "$_passed" -lt 20 ]` threshold became eight individually named assertions,
+  one per audited manifest plus the SDK. A count cannot say which manifest went
+  unaudited, and it picks up slack it was never meant to have: drop one
+  manifest, add two assertions elsewhere, and the threshold still passes while a
+  shipped manifest goes unscanned.
+
 ## v9.49.3
 
 Six fixes, four of them the same defect class: a READER reading a key or file
