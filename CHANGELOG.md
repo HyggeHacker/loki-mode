@@ -542,6 +542,12 @@ agent may have touched, check the COMMITTED version, not the working tree.
 
 The pull request is the deliverable. It no longer needs a flag.
 
+Never published: `required-ci` failed with `Tests: completed/cancelled` at this
+SHA (run 34703144204), so `release` and every publish job was skipped. The Tests
+run was cancelled rather than broken -- v9.44.0 pushed eight minutes later and
+superseded it -- so nothing here was reverted or refixed; the content shipped in
+v9.44.0. No tag or npm version for 9.43.0 exists.
+
 ### Changed
 
 - **`LOKI_DELEGATE_PR` now defaults ON.** On completion the product used to
@@ -2139,6 +2145,11 @@ any code moved.
 
 ## v9.26.2
 
+Committed and pushed but never released: `required-ci` failed with
+`Tests: completed/failure` at this SHA, so every publish job was skipped
+(run 34432149958). The cause is the environment-conditional `yq` assertion
+corrected in v9.26.3 above. No tag or npm version for it exists.
+
 ### Fixed
 
 - **YAML unknown-key detection now falls back to `yq`.** The check added in
@@ -2337,6 +2348,12 @@ so no gate goes red and only a bill shows the difference. Both are guarded.
 
 ## v9.23.0
 
+Committed and tagged locally but never released: `required-ci` failed with
+`Security Audit: completed/failure` at this SHA, so `release` and every publish
+job was skipped (run 34395800201). The audit failure is the fast-uri advisory
+set fixed in v9.23.1 below, which is the version that reached npm. No remote tag
+or npm version for 9.23.0 exists.
+
 ### Fixed
 
 - **The marketplace plugin failed to load at all.** `plugin.json` declared
@@ -2376,6 +2393,14 @@ so no gate goes red and only a bill shows the difference. Both are guarded.
   than deleted.
 
 ## v9.22.13
+
+Tagged but never published to npm: `gate`, `required-ci` and `release` all
+succeeded and the tag was pushed, so no test or gate blocked it. Both npm
+publishing jobs then failed on the registry PUT (run 32751584247):
+`publish-npm` with `npm error 404 Not Found - PUT
+https://registry.npmjs.org/loki-mode`, and `publish-ts-sdk` with the same E404
+on `.../loki-mode-sdk`, while `publish-docker` and `publish-python-sdk`
+succeeded. v9.22.14 did not publish either; v9.24.0 is the next version on npm.
 
 ### Added
 

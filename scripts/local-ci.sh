@@ -360,6 +360,20 @@ declare -a _FAST_KEEP=(
   # checks that the definition still attaches it. The gap it closes went
   # unnoticed for months because a dead workflow trigger reads as an empty run
   # list, never a red one.
+  # Guards the SHIPPED README against the tool list that actually blocks. A
+  # reader who installs exactly what "Required:" names must get a doctor that
+  # passes; jq and Node.js sat under "Recommended:" while doctor failed on both.
+  # Docs are a shipped artifact, so by the CLAUDE.md rule this runs in fast.
+  "tests/test-readme-lists-required-tools.sh" # 0.1s
+  # Every module under web-app/src must be reachable from main.tsx. The measured
+  # defect: pages/ConnectionsPage.tsx rendered a complete deploy-connections
+  # panel that App.tsx imported ZERO times, so /connections fell through the SPA
+  # catch-all to NotFoundPage and no user could open it. A sweep found 38 such
+  # modules. Reachability, not an inbound-import count: main.tsx has zero
+  # inbound and is the entry, and 6 charts had one inbound edge each from a
+  # barrel nothing imported. Deleted code is invisible to every other gate, so
+  # nothing else in CI can see this class. Measured 0.1s (one node graph walk).
+  "tests/test-web-app-no-orphan-components.sh"
   "tests/test-release-sbom-attached.sh"       # 0.2s
   "tests/test-mcp-tool-surface-packaged.sh"   # 2.9s
   "tests/test-mcp-tool-surface-guard-rejects.sh" # 8s, proves the guard rejects
@@ -1302,6 +1316,21 @@ PYHS
 # -- the same deferral that let dist ship 8.11.0 for 27 releases. Measured 2.9s.
 run_check "tests/test-mcp-tool-surface-packaged.sh (packaged MCP surface, exact names)" \
   "bash tests/test-mcp-tool-surface-packaged.sh 2>&1 | tail -4"
+
+# The README's "Required:" list must cover every tool doctor actually blocks
+# on. jq and Node.js sat under "Recommended:" while doctor failed on both, so a
+# reader who installed exactly what was Required got a doctor that refused to
+# pass. Reads the required set out of doctor; measured 0.1s.
+run_check "tests/test-readme-lists-required-tools.sh (README Required block covers doctor)" \
+  "bash tests/test-readme-lists-required-tools.sh 2>&1 | tail -3"
+
+# web-app/src modules must all be reachable from main.tsx. A _FAST_KEEP entry
+# alone would never fire: the fast tier is a positive allowlist over checks that
+# are REGISTERED here, so membership without this call site is a no-op. That gap
+# is exactly what this line closes. Measured 0.1s.
+run_check "tests/test-web-app-no-orphan-components.sh (no unreachable web-app modules)" \
+  "bash tests/test-web-app-no-orphan-components.sh 2>&1 | tail -3"
+
 
 # Same rule, a different shipped artifact: the SBOM exists ONLY as a release
 # asset, attached at `gh release create` time. Nothing else checks that the
