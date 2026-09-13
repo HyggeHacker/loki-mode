@@ -1352,7 +1352,7 @@ da_ended=$(monotonic_ms)
 da_elapsed=$((da_ended - da_started))
 da_review="$(find "$DA_REPO/.loki/quality/reviews" -mindepth 1 -maxdepth 1 -type d | head -1)"
 if [ "$da_rc" -ne 0 ] && [ -s "$TMPROOT/da-started" ] \
-   && python3 - "$da_review/aggregate.json" "$da_review/assurance-timing.json" <<'PY'
+   && python3 - "$da_review/aggregate.json" "$da_review/assurance-timing.json" "$(review_budget 12)" <<'PY'
 import json
 import sys
 
@@ -1363,7 +1363,25 @@ assert aggregate["devils_advocate"] == {
     "status": "block", "exit_code": 0, "speculative": True
 }
 assert timing["devils_advocate_speculative"] is True
-assert timing["elapsed_ms"] < 6000
+# Derived from the SCALED budget dispatched above, never a literal. The call
+# this measures runs with `review_budget 12`: 12s locally, 48s on a contended
+# sharded runner. A bare `< 6000` bound stayed at the local value while the
+# call it measures got four times longer, so the assertion failed on correct
+# code -- the exact trap this file documents at :459-461, and the one already
+# fixed at :1268 by passing the budget as argv.
+#
+# The heredoc is quoted (<<'PY'), so no shell interpolation can reach a literal
+# here; the budget MUST arrive as an argument.
+#
+# Half the dispatched budget keeps the assertion's teeth. The speculative path
+# exists to remove the serial DA tail, so a regression that reintroduced that
+# tail would consume the full budget and still exceed this bound. At the local
+# scale this is 6000ms, byte-identical to the bound it replaces.
+_budget_ms = int(sys.argv[3]) * 1000
+assert timing["elapsed_ms"] < _budget_ms // 2, (
+    "elapsed_ms %r is not under half the dispatched budget %rms"
+    % (timing["elapsed_ms"], _budget_ms)
+)
 PY
 then
     ok "speculative DA removes the serial tail and preserves blocker propagation"
