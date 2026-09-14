@@ -5,6 +5,25 @@ All notable changes to Loki Mode will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+**A failed PAUSED.md write was invisible (Bun route).** `handlePause` writes
+`.loki/PAUSED.md` inside a bare `catch {}`. The write goes through
+`atomicWriteFileSync` -> `withFileLockSync`, which throws when it cannot
+acquire the per-target lockfile within `LOCK_MAX_WAIT_MS` (5s). Nothing
+re-writes the file afterwards -- one write against four `rmIfExists` sites --
+so a swallowed failure was terminal and surfaced no error anywhere: a paused
+run simply had no notice file and no explanation.
+
+Reproduced by holding `PAUSED.md.lock` and calling `handlePause`: the file is
+absent for the whole wait. Negative control with the lock free: present.
+
+The catch is kept deliberately. Every consumer treats `PAUSED.md` as a
+human-readable notice (`autonomous.ts::cleanStaleSignalFiles` only unlinks it;
+`run.sh:4900` only points the user at it), and a pause that HANGS on a
+contended lockfile is worse than a pause with no notice file. The caught error
+is now logged so the next occurrence names itself.
+
 ## v9.50.3
 
 A paused run could hang forever or resume on data nobody typed, and the

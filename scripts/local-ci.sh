@@ -1457,7 +1457,13 @@ run_check "tests/test-verify-client-routes.sh (web-app client paths resolve to r
 # Both added this session and run by CI but not by this gate, which is how two
 # releases reached CI carrying a failure never executed locally.
 run_check "tests/test-doctor-optional-skill-not-blocking.sh (optional-provider skill severity)" "bash tests/test-doctor-optional-skill-not-blocking.sh 2>&1 | tail -4"
-run_check "tests/test-multi-repo-orchestrates.sh (--multi-repo visits every repo)" "bash tests/test-multi-repo-orchestrates.sh 2>&1 | tail -4"
+# tail -40, not -4: this suite prints 10 per-assertion lines plus a summary, so
+# a 4-line window holds the last two PASSes and the count -- it can only ever
+# contain the `FAIL:` line when the failure is among the final assertions. It
+# went red in the fast tier on 2026-09-14 and the capture named nothing; the
+# tree then passed 3/3 standalone, 1/1 at the pushed baseline, and a full gate
+# re-run on the identical bytes. Capture enough to name it next time.
+run_check "tests/test-multi-repo-orchestrates.sh (--multi-repo visits every repo)" "bash tests/test-multi-repo-orchestrates.sh 2>&1 | tail -40"
 
 run_check "tests/cli/test-quickstart.sh (guided interview composition)" "bash tests/cli/test-quickstart.sh 2>&1 | tail -3"
 
