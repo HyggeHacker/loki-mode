@@ -5,6 +5,41 @@ All notable changes to Loki Mode will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v9.50.1
+
+Two published SWE-bench figures were never retracted, though they measure the
+same broken counter that v9.42.0 retracted everywhere else.
+
+`generated_count` incremented on any NON-EMPTY `model_patch` string, and the
+validator used substring tests (`"---" in patch`, `"@@" in patch`) that prose
+quoting a diff satisfies. Re-measuring the stored 300-instance run found 179 of
+300 were prose, not diffs. Four instances of the resulting 99.67% figure were
+annotated in place in v9.42.0. Two were missed:
+
+- `### Added - SWE-bench Lite Benchmark Results (50 Problems)` and its
+  "100% Patch Generation" claim. That 50-instance run was never re-measured, so
+  its true rate is UNKNOWN.
+- A one-line blog bullet citing "SWE-bench 100%".
+
+Both now carry a correction in place. No corrected figure is published, for the
+same reason v9.42.0 published none: producing one requires re-running the
+harness, and an estimate would repeat the original error of publishing a number
+nobody measured.
+
+The HumanEval 98.78% figure was audited in the same pass and is SOUND. Recounted
+independently from the cited results JSON: 164 problems recorded, 162 with
+`passed is True`, and the strict count equals the truthy count, so no
+string-counting inflation is present. Every `passed` field is a real boolean. It
+is left unchanged and its "Self-reported" framing in README.md is accurate.
+
+Also audited clean in this pass, with controls: both benchmark scorers gate
+`passed_count` on a real pass signal rather than truthiness
+(`run-benchmarks.sh:463` on `test_result["passed"]` from actual test execution,
+`:880` on `problem_result["passed"]`); a timed-out cell returns `passed: False`
+rather than vanishing, so it cannot inflate a rate by shrinking the denominator;
+and `benchmarks/bench/equivalence_report.py` deliberately handicaps Loki's own
+signal so false-green cannot be biased in our favour.
+
 ## v9.50.0
 
 A quality gate was calling four real tests fake, and a guard nobody could clear
@@ -26653,7 +26688,7 @@ multi-persona debate (MoMoA) into a native Loki subsystem.
 - Dashboard: API pricing reference card (Opus/Sonnet/Haiku)
 - Backend: `GET /api/cost` endpoint for token/cost metrics
 - Templates: 12 PRD templates (saas-starter, cli-tool, discord-bot, chrome-extension, mobile-app, blog-platform, e-commerce, ai-chatbot + 4 from examples)
-- Blog: Benchmark results page with Chart.js visualizations (HumanEval 98.78%, SWE-bench 100%)
+- Blog: Benchmark results page with Chart.js visualizations (HumanEval 98.78%, SWE-bench 100% [RETRACTED 2026-09-14: the SWE-bench figure is the `generated_count` string-counting metric retracted in v9.42.0; the HumanEval figure is unaffected and independently recounted as 162/164])
 - GitHub Action: Reusable `action.yml` for CI/CD code review integration
 - GitHub: 12 good-first-issues (#14-#25) for community onboarding
 
@@ -30382,6 +30417,21 @@ Loki Mode already implements most research-backed patterns:
 ## [2.22.0] - 2026-01-05
 
 ### Added - SWE-bench Lite Benchmark Results (50 Problems)
+
+> **CORRECTION, added 2026-09-14. The 100% figure below is wrong and is
+> retained only so the record is not quietly rewritten.**
+>
+> This is the SAME `generated_count` metric retracted for the 300-instance run
+> in v9.42.0: a counter that incremented on any NON-EMPTY `model_patch` string,
+> validated by substring tests (`"---" in patch`, `"@@" in patch`) that prose
+> quoting a diff satisfies. "100% patch generation" therefore means 50 of 50
+> produced a non-empty string, NOT 50 of 50 produced a genuine diff.
+>
+> The 300-instance re-measurement found 179 of 300 were prose rather than
+> diffs. This 50-instance run was never re-measured, so its true rate is
+> UNKNOWN. No corrected figure is published here: producing one requires
+> re-running the harness, and an estimate would repeat the original error of
+> publishing a number nobody measured.
 
 **100% Patch Generation on SWE-bench Lite** - Initial 50 problems successfully generated patches!
 
