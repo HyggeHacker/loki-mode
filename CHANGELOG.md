@@ -5,6 +5,44 @@ All notable changes to Loki Mode will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v9.50.2
+
+Three fixes reach users here. The security fix landed on main after v9.50.1 was
+already published, so npm users are receiving it for the first time in this
+release.
+
+**A public placeholder was accepted as the JWT signing key.** `web-app/auth.py`
+read `PURPLE_LAB_SECRET_KEY` from the environment and used whatever it found.
+The shipped documentation and compose files carry
+`CHANGE_ME_TO_RANDOM_64_CHAR_HEX` as the example value, so any deployment that
+copied the example and did not edit it signed its tokens with a string published
+in this repository. Anyone could mint a valid token. The placeholder set is now
+rejected and a random 64-char key is generated instead, with a CRITICAL log
+line. Verified by mutation in both directions: each placeholder is rejected, a
+real 64-char secret is not.
+
+**npm could publish a stale dist that Docker would catch too late.** `prepack`
+rebuilds `loki-ts/dist` during `npm publish`, so a worktree assertion could pass
+while the PACKED tarball carried a different build. The `publish-npm` job now
+unpacks the tarball it is about to publish and asserts the dist inside it
+carries the version being released. Measured across five sampled release
+commits, one had a worktree dist lagging the tarball.
+
+**The MCP registry guard read a stale row and called a good publish drift.** The
+registry keeps every published version as its own row and every row stays
+`status=active`. The guard iterated `servers[]`, took the first name match and
+stopped, so it reported whichever row the API happened to order first. After
+9.50.1 was published and flagged `isLatest`, the registry still ordered the
+7.34.1 row first, so the guard reported drift against a registry that was
+already current. It now selects on `isLatest` rather than array order.
+
+A guard that cannot see success is worse than no guard: a red nobody can clear
+trains everyone to ignore reds. Verified three ways rather than one, since a
+single green reading proves nothing here. Live (reads 9.50.1), negative control
+(a response with `isLatest` on the old version still selects the old version, so
+genuine drift is still detected), and positive control (reversing the live array
+still selects 9.50.1, so the result is order-independent).
+
 ## v9.50.1
 
 Two published SWE-bench figures were never retracted, though they measure the
