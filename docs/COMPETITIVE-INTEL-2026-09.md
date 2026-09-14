@@ -250,7 +250,32 @@ never of what is true now.
 
 **Closes a gap against Agent Effectiveness. Cheap. Not in NEXT-10.**
 
-**ALREADY EXISTS: THE READER DOES, THE WRITER DOES NOT.** This is the
+**REFUTED 2026-09-14 by the integrator. ALREADY EXISTS: FULLY.** This item was
+filed on the belief that the reader exists and the writer does not. Both halves
+of the chain ship:
+
+- **Writer:** `handle_pause` in `autonomy/run.sh` increments
+  `.loki/state/interventions.json` (the counter block at `autonomy/run.sh:25712`).
+  Counted there deliberately: every pause path funnels through `handle_pause`,
+  and the `_PAUSE_IN_PROGRESS` guard makes one blocking pause count once.
+- **Proof:** `autonomy/lib/proof-generator.py:1147-1151` reads that file into the
+  journey; `:1544-1545` mirrors it to top-level `proof["interventions"]`.
+- **Reader:** `_interventions_value` in `autonomy/lib/trust_trajectory.py`.
+
+Verified empirically: replaying the writer's logic yields count 1 then 2 across
+two pauses. **No build required.**
+
+The trap that made it look missing: `_AXIS_HIGHER_IS_BETTER = {"interventions":
+False, ...}` reads like a disable flag. It is POLARITY (lower-is-better), and
+`iterations` is `False` for the same reason. There are only three `_AXIS_*`
+dicts and none gates availability. The axis honestly reports `available: false`
+until a proof carries the count, which is by design, not a gap.
+
+The stale docstring that seeded this belief was corrected in `a9a02681`.
+
+Original (incorrect) reasoning retained below for the record:
+
+**~~ALREADY EXISTS: THE READER DOES, THE WRITER DOES NOT.~~** This is the
 reader/writer key contract trap this repo has hit before.
 `autonomy/lib/trust_trajectory.py` already declares `interventions` as a tracked
 metric with a lower-is-better direction `[measured: lines 13, 46, 54, 61]`, and
