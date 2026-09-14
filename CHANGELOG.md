@@ -5,6 +5,71 @@ All notable changes to Loki Mode will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v9.50.0
+
+A quality gate was calling four real tests fake, and a guard nobody could clear
+was failing every push.
+
+### The mock detector's source-import check missed two real forms
+
+`tests/detect-mock-problems.sh` is a BLOCKING gate: `run.sh` invokes it with
+`--strict`, which exits 1 on CRITICAL or HIGH. Two legitimate import forms were
+invisible to it, so it reported the tests using them as having no source import
+at all.
+
+- **TS NodeNext resolution.** A specifier written `./foo.js` commonly names a
+  real `./foo.ts` on disk; the extension in the specifier is the post-build one.
+  The check tried only the literal path. It now tries the literal first, then
+  the TS sibling, for `.js`/`.jsx`/`.mjs`/`.cjs`.
+- **Dynamic import.** `await import('./x.ts')` is bun:test's documented pattern
+  for loading a module after `mock.module()` has stubbed an import. Only static
+  and `require` forms matched.
+
+Mutation-verified in both directions against this repository: CRITICAL went
+14 -> 10 with HIGH unchanged at 2, and ZERO new findings appeared. The four that
+cleared are genuine source-importing tests (`loki-dashboard-grid`,
+`loki-session-control-focus`, `oauth_dev`, `sdk_query_provider`). `--strict`
+still exits 1 on the 10 remaining, which are a different shape.
+
+### A guard only a credential holder could clear was reddening every push
+
+`tests/test-mcp-registry-not-stale.sh` compares the local VERSION to the live
+MCP registry. It was registered in `run-all-tests.sh`, which every CI shard
+runs on every push, and it exited 1 on drift. Closing that drift needs registry
+publisher credentials nobody working in the repo holds, so the red was
+unclearable. It is now ADVISORY by default: it still prints the FAIL line and
+still reports the drift, and exits 0. `LOKI_MCP_REGISTRY_STRICT=1` asks for the
+hard signal, and only the nightly parity-drift job sets it.
+
+Two defects surfaced while wiring that nightly job, both caught by controls:
+`rc=$?` could never run because GitHub runs steps with `bash -e` and a step's
+own `set -uo pipefail` does not disable it, so the STRICT exit killed the step
+before rc was read (now `|| rc=$?`); and the output had no consumer, so a
+separate reporting step was added that references only what the registry guard
+itself wrote. Verified end to end: the mechanism opened issue #198.
+
+### Documentation that described artifacts no code writes
+
+Four `.loki/` paths were named in `skills/` and `references/` with zero
+producing code, including a draft-07 schema and a `cat ... | jq` recovery
+command for `.loki/state/circuit-breakers.json`, a file that has never existed.
+Corrected to name the real artifacts: the three circuit breakers hold state in
+memory, the terminal queue is `dead-letter.json`, the memory index lives at the
+memory root, and the metrics actually written are
+`efficiency/iteration-<N>.json`, `budget.json` and `trust-events.jsonl`.
+
+`check-phase6-ready.yml` also carried a disable reason that stopped being true
+in May ("issues disabled on repo"; they are enabled). The cron stays off for a
+durable reason instead: it gates "Phase 6 - Sunset of Bash" for a v8.0.0 release
+that shipped 168 tags ago.
+
+### Two security boundary suites were registered but never ran
+
+`test_tenant_isolation.py` and `test_oidc_rbac_mapping.py` had a `run_check`
+call site and no `_FAST_KEEP` entry, so the fast tier deferred both and neither
+ran before a push. An auth-boundary suite no pre-push gate runs is
+indistinguishable from one that does not exist.
+
 ## v9.49.4
 
 Mostly a deletion release. 4,794 lines removed against 905 added, because the
