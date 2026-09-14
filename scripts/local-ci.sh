@@ -1020,7 +1020,12 @@ run_check "tests/test-security-scan-coverage.sh (CI security scanners wired, fai
 run_check "tests/test-security-scan-registered.sh (that guard runs and is not vacuous)" "bash tests/test-security-scan-registered.sh 2>&1 | tail -3"
 run_check "tests/test-build-home-isolation.sh (in-build app exec sandbox)" "bash tests/test-build-home-isolation.sh 2>&1 | tail -3"
 run_check "tests/test-proven-pr-receipt.sh (PR-body honesty + no false green)" "bash tests/test-proven-pr-receipt.sh 2>&1 | tail -3"
-run_check "tests/test-pause-tty-and-receipt-surface.sh (pause needs no TTY; receipt is announced)" "bash tests/test-pause-tty-and-receipt-surface.sh 2>&1 | tail -4"
+# tail -40, not -4: this suite went red once in the fast tier and the 4-line
+# capture truncated the failing assertion, so the red was unfalsifiable. It
+# passed ~44 standalone executions afterwards, including 4-way concurrent
+# contention, so the cause is still unknown. Capture enough to name it next
+# time rather than re-running blind.
+run_check "tests/test-pause-tty-and-receipt-surface.sh (pause needs no TTY; receipt is announced)" "bash tests/test-pause-tty-and-receipt-surface.sh 2>&1 | tail -40"
 run_check "tests/test-proven-pr-check.sh (advisory check-run, cannot block merge)" "bash tests/test-proven-pr-check.sh 2>&1 | tail -3"
 run_check "tests/test-proven-pr-installed-layout.sh (verify-yourself on shipped routes)" "bash tests/test-proven-pr-installed-layout.sh 2>&1 | tail -3"
 run_check "tests/test-proven-pr-detached.sh (detached --pr/--ship -d carries receipt)" "bash tests/test-proven-pr-detached.sh 2>&1 | tail -3"

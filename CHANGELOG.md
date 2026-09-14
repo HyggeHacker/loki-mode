@@ -5,6 +5,55 @@ All notable changes to Loki Mode will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v9.50.3
+
+A paused run could hang forever or resume on data nobody typed, and the
+Evidence Receipt it wrote was never announced. Both reach users here.
+
+**A non-interactive pause could hang, or falsely resume (#205).** When a quality
+gate escalated to a PAUSE, the wait loop polled for a keypress. Off a TTY
+(`--bg`, a container, a CI job) that read can never succeed, so the run spun
+forever with nobody able to press anything. Worse, when stdin was a pipe or file
+carrying bytes, the read SUCCEEDED on the first stray byte and the next line
+removed `.loki/PAUSE`, silently resuming a run that a blocking gate had stopped.
+The keypress arm is now gated on an interactive stdin. The file-based escapes are
+untouched and still poll every second: measured off a TTY, removing `.loki/PAUSE`
+exits in 4 loops and `touch .loki/STOP` in 5. A fully unattended run still waits,
+which is deliberate; a bounded wait would invent a new terminal outcome and could
+fail a legitimate long human pause.
+
+The pause banner and `.loki/PAUSED.md` both advertised "press Enter" where no key
+can be read. Both now state the truth per tty state.
+
+**The Evidence Receipt is now announced (#209).** The receipt was already
+generated automatically and opt-out, but the only mention to the user was a
+single line. A user who had never heard of `loki proof` could finish a run
+without learning a checkable receipt existed. The end-of-run summary now names
+the receipt path, the deterministic verdict, and the re-check command. The
+verdict is the generator's `honesty.headline`, never the council's AI judgment.
+The page line is gated on `index.html` actually existing, because the generator
+writes `proof.json` and then renders the page unwrapped, so a render failure
+would otherwise name a page that is not there.
+
+**A run could advertise the previous run's receipt (#211).**
+`.loki/state/last-proof-id.txt` was never cleared at run start, so a run that
+died before generating a proof left the previous run's id behind, and
+`COMPLETION.txt` printed that receipt under the heading "Evidence Receipt (this
+run):". A receipt naming the wrong run is worse than no receipt: absence reads as
+"no data", a stale one reads as evidence. The pointer is now cleared during run
+init, beside the existing stale-metrics reset that exists for the same reason.
+
+**The re-check command now works from any directory.** `loki proof verify <id>`
+resolves the receipt from the run's target dir, which need not be where the user
+is standing, so the printed command failed for exactly the user it invited to
+check the work. It now emits a `cd`-wrapped form when the cwd differs.
+
+**The run id is validated before use.** The headline was sanitized and the id was
+not, so an interior newline or tab in the pointer split the tab-separated record
+and handed the consumers a field boundary that is not there. Ids are confined to
+`[A-Za-z0-9._-]` and rejected rather than repaired, since a pointer outside that
+alphabet is corrupt and a repaired id would name a directory that does not exist.
+
 ## v9.50.2
 
 Three fixes reach users here. The security fix landed on main after v9.50.1 was
