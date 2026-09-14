@@ -445,7 +445,7 @@ python3  ... .read().count('Loki')            ->  91
 
 The default tool was silently wrong. A dist check built on a plain `grep` would
 have reported clean every single time, which matters here more than anywhere
-else: this repo's worst recorded release defect is a stale `dist/loki.js`
+else: this repo's worst recorded release defect is a stale `loki-ts/dist/loki.js`
 shipping the wrong version for 27 releases.
 
 ### 7.1 The three rules that follow
