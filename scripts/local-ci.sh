@@ -394,6 +394,14 @@ declare -a _FAST_KEEP=(
   # nothing else in CI can see this class. Measured 0.1s (one node graph walk).
   "tests/test-web-app-no-orphan-components.sh"
   "tests/test-release-sbom-attached.sh"       # 0.2s
+  # Guards two shipped behaviors no other suite covers: a pause must not wait
+  # on a keypress that cannot arrive off a TTY (it either spun forever or was
+  # falsely resumed by stray stdin bytes), and a finished run must state the
+  # Evidence Receipt path, verdict and re-check command. Both are user-facing
+  # shipped behavior, so per the packaged-artifact rule this runs in the FAST
+  # tier -- the only tier that runs before every push. Measured ~6s (no
+  # provider call, no network; the waits are bounded by `timeout`).
+  "tests/test-pause-tty-and-receipt-surface.sh"
   "tests/test-mcp-tool-surface-packaged.sh"   # 2.9s
   "tests/test-mcp-tool-surface-guard-rejects.sh" # 8s, proves the guard rejects
   # CLAUDE.md cleanup mandate: sub-second, and the whole point is that it runs
@@ -1005,6 +1013,7 @@ run_check "tests/test-security-scan-coverage.sh (CI security scanners wired, fai
 run_check "tests/test-security-scan-registered.sh (that guard runs and is not vacuous)" "bash tests/test-security-scan-registered.sh 2>&1 | tail -3"
 run_check "tests/test-build-home-isolation.sh (in-build app exec sandbox)" "bash tests/test-build-home-isolation.sh 2>&1 | tail -3"
 run_check "tests/test-proven-pr-receipt.sh (PR-body honesty + no false green)" "bash tests/test-proven-pr-receipt.sh 2>&1 | tail -3"
+run_check "tests/test-pause-tty-and-receipt-surface.sh (pause needs no TTY; receipt is announced)" "bash tests/test-pause-tty-and-receipt-surface.sh 2>&1 | tail -4"
 run_check "tests/test-proven-pr-check.sh (advisory check-run, cannot block merge)" "bash tests/test-proven-pr-check.sh 2>&1 | tail -3"
 run_check "tests/test-proven-pr-installed-layout.sh (verify-yourself on shipped routes)" "bash tests/test-proven-pr-installed-layout.sh 2>&1 | tail -3"
 run_check "tests/test-proven-pr-detached.sh (detached --pr/--ship -d carries receipt)" "bash tests/test-proven-pr-detached.sh 2>&1 | tail -3"
