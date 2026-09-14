@@ -1075,6 +1075,56 @@ PYEOF
         ok "the teardown announcement does not name an index.html that is not on disk"
     fi
 
+    # ---- GAP 1: the re-check line must END at the run id -------------------
+    # Substring `grep -q 'loki proof verify'` matches both base and a mutant
+    # that widened the id, because the mutant output is the base output plus
+    # trailing junk. Greedy-to-non-greedy at run.sh (`${v%%<TAB>*}` -> `${v%<TAB>*}`)
+    # therefore survived at 79/0: the printed command became
+    # `loki proof verify <id><TAB><dir><TAB><verdict>`, which cannot be pasted
+    # and names fields that are not an id. Assert the EXACT id at both consumers.
+    _rc_cs="$(printf '%s' "$_out_cs" | grep 'loki proof verify' | tail -1)"
+    _rc_td="$(printf '%s' "$_out_td" | grep 'loki proof verify' | tail -1)"
+    _rc_tab="$(printf '\t')"
+
+    # POSITIVE CONTROL: a re-check line must exist, or the exactness checks
+    # below are satisfied by there being no line at all.
+    if [ -n "$_rc_cs" ] && [ -n "$_rc_td" ]; then
+        ok "both consumers print a re-check command (control for the exactness checks)"
+    else
+        bad "both consumers print a re-check command (control for the exactness checks)" \
+            "cs='$_rc_cs' td='$_rc_td' -- the exactness assertions would be vacuous"
+    fi
+
+    # Two shapes are legitimate, because the command is cwd-independent:
+    #   bare    "    loki proof verify <id>"
+    #   wrapped "    (cd <root> && loki proof verify <id>)"
+    # Both END at the id (the wrapped form closes its subshell immediately
+    # after). A widened id appends record fields and matches neither.
+    case "$_rc_cs" in
+        *"loki proof verify run-cons"|*"loki proof verify run-cons)")
+            ok "COMPLETION.txt re-check command ends at the run id (no widened field)" ;;
+        *)
+            bad "COMPLETION.txt re-check command ends at the run id (no widened field)" \
+                "got '$_rc_cs' -- a widened id makes the command unpastable" ;;
+    esac
+    case "$_rc_td" in
+        *"loki proof verify run-cons"|*"loki proof verify run-cons)")
+            ok "the teardown re-check command ends at the run id (no widened field)" ;;
+        *)
+            bad "the teardown re-check command ends at the run id (no widened field)" \
+                "got '$_rc_td' -- same defect on the surface the user sees" ;;
+    esac
+
+    # A tab inside the printed command is the exact signature of a non-greedy
+    # expansion absorbing adjacent record fields, and is invisible to substring.
+    case "$_rc_cs$_rc_td" in
+        *"$_rc_tab"*)
+            bad "no re-check command carries a tab (the non-greedy signature)" \
+                "a tab means the id absorbed adjacent record fields" ;;
+        *)
+            ok "no re-check command carries a tab (the non-greedy signature)" ;;
+    esac
+
     # And the page line must come BACK when the render did succeed: a gate that
     # never prints the path would also pass both assertions above.
     printf 'rendered page\n' > "$CFX/proofs/run-cons/index.html"

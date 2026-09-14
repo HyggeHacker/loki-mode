@@ -4347,7 +4347,7 @@ else:
 #   - Resolved from the PERSISTED pointer (.loki/state/last-proof-id.txt),
 #     never newest-by-mtime, so it names the run the generator actually wrote.
 #   - Emits NOTHING unless the pointer, the proof dir, and proof.json all exist.
-#     build_completion_summary also runs mid-pause (the intervention paths) and
+#     the summary builder (build_completion_summary) is itself invoked mid-pause
 #     before the teardown receipt on the success path, where no receipt exists
 #     yet -- printing a path there would be a promise, not a fact.
 #   - The headline is honesty.headline, which the generator computes
@@ -4364,6 +4364,15 @@ _loki_receipt_facts() {
     [ -s "$id_file" ] || return 0
     local rid=""
     rid="$(cat "$id_file" 2>/dev/null || true)"
+    # Confine the run id to the alphabet the generator actually mints. The
+    # headline is sanitized below; the id was not, so an interior newline or a
+    # tab in the pointer split the tab-separated record and handed the consumers
+    # a field boundary that is not there. Reject rather than repair: a pointer
+    # outside this alphabet is corrupt, and a repaired id would name a directory
+    # that does not exist.
+    case "$rid" in
+        ''|*[!A-Za-z0-9._-]*) return 0 ;;
+    esac
     [ -n "$rid" ] || return 0
     local pj="$loki_dir/proofs/$rid/proof.json"
     [ -f "$pj" ] || return 0
@@ -4948,7 +4957,15 @@ except Exception:
                 echo "  Receipt: $_cs_dir/index.html"
             fi
             echo "  Re-check it yourself, do not take our word for it:"
-            echo "    loki proof verify $_cs_rid"
+            # Cwd-independent: the receipt is resolved from the run's target
+            # dir, which need not be where the user is standing. A bare
+            # `loki proof verify <id>` then fails for exactly the user we just
+            # told to check our work.
+            if [ "$(cd "$loki_dir/.." 2>/dev/null && pwd -P)" = "$(pwd -P)" ]; then
+                echo "    loki proof verify $_cs_rid"
+            else
+                echo "    (cd $(cd "$loki_dir/.." 2>/dev/null && pwd -P) && loki proof verify $_cs_rid)"
+            fi
         fi
     } > "$loki_dir/COMPLETION.txt" 2>/dev/null || true
 
@@ -5287,12 +5304,15 @@ except Exception:
     # -- thousands of lines BEFORE the teardown that generates this run's
     # receipt. Announcing here would therefore be silent on a normal success
     # run (no proof exists yet), and on a SECOND run in the same directory it
-    # would be actively wrong: .loki/state/last-proof-id.txt is never cleared at
-    # run start (measured: seven references in autonomy/, zero removals), so the
-    # card would read the PREVIOUS run's pointer and print that receipt, with
-    # that run's verdict, as though it described this run. A stale verdict is
-    # worse than no line. The announcement lives at the teardown instead, after
-    # the final generate_proof_of_run, where the pointer is guaranteed current.
+    # would have been actively wrong before #211: .loki/state/last-proof-id.txt
+    # was never cleared at run start, so the card would read the PREVIOUS run's
+    # pointer and print that receipt, with that run's verdict, as though it
+    # described this run. The pointer is now cleared during run init (search
+    # "Same reasoning for the proof pointer"), which closes the cross-run leak,
+    # but this site stays silent anyway: it renders thousands of lines before
+    # THIS run's receipt exists, so it would print nothing on a normal success
+    # run. The announcement lives at the teardown instead, after the final
+    # generate_proof_of_run, where the pointer is guaranteed current.
     echo -e "${GREEN}+================================================================+${NC}"
     echo ""
     return 0
@@ -6623,6 +6643,15 @@ init_loki_dir() {
     mkdir -p .loki/metrics/efficiency
     # Clear stale metrics from previous sessions so loki metrics shows current run data (#75)
     rm -f .loki/metrics/efficiency/iteration-*.json 2>/dev/null || true
+    # Same reasoning for the proof pointer (#211). .loki/state/last-proof-id.txt
+    # is written by generate_proof_of_run and was never cleared, so a run that
+    # died before generating a proof left the PREVIOUS run's id behind. Every
+    # reader then resolved a receipt describing different work, and
+    # the summary builder (build_completion_summary) would print it under the
+    # literal heading "Evidence
+    # Receipt (this run):". A receipt naming the wrong run is worse than no
+    # receipt: absence reads as "no data", a stale one reads as evidence.
+    rm -f .loki/state/last-proof-id.txt 2>/dev/null || true
     mkdir -p .loki/rules
     mkdir -p .loki/signals
 
@@ -27133,9 +27162,12 @@ except Exception:
     # to point at it. Every earlier surface is either too early (the completion
     # card renders from inside run_autonomous, long before any proof exists) or
     # unreachable to a foreground user (COMPLETION.txt self-heals here, but only
-    # a --bg launch is ever told to read it). The pointer is never cleared at run
-    # start, so announcing from an earlier site would print the PREVIOUS run's
-    # receipt and verdict on a second run in the same directory.
+    # a --bg launch is ever told to read it). Before #211 the pointer was never
+    # cleared at run start, so announcing from an earlier site printed the
+    # PREVIOUS run's receipt and verdict on a second run in the same directory.
+    # Run init now clears it (search "Same reasoning for the proof pointer"), so
+    # a stale pointer no longer survives into a new run; the position still
+    # matters because an earlier site is simply too early for THIS run's proof.
     #
     # TTY-gated the same way print_ttfv_next_steps is above: machine output and
     # --bg stay byte-identical, and those readers already get the same facts
@@ -27160,7 +27192,13 @@ except Exception:
                 echo "  $_rcpt_dir/index.html"
             fi
             echo "  Re-check it yourself, do not take our word for it:"
-            echo "    loki proof verify $_rcpt_id"
+            # Cwd-independent, same reasoning as the COMPLETION.txt site.
+            _rcpt_root="$(cd "${TARGET_DIR:-.}" 2>/dev/null && pwd -P)"
+            if [ "$_rcpt_root" = "$(pwd -P)" ]; then
+                echo "    loki proof verify $_rcpt_id"
+            else
+                echo "    (cd $_rcpt_root && loki proof verify $_rcpt_id)"
+            fi
             echo ""
         fi
     fi

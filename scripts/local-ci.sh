@@ -75,6 +75,13 @@ esac
 #   tests/test-proven-pr-receipt.sh      FAIL under load ->  14 passed, 0 failed
 #   tests/test-heal-assess-readiness.sh  FAIL under load ->   8 passed, 0 failed
 #
+# MEASURED on 2026-09-14, same shape, same outcome:
+#   tests/test-multi-repo-orchestrates.sh FAIL under load -> 10 passed, 0 failed
+# It makes five real-CLI invocations under `timeout 180`, so it starves exactly
+# like the four above. Diff-innocence was measured too, not assumed: the change
+# under test touched it 0 times against a 102-line positive control, and it also
+# passed 10/0 against the then-pushed baseline extracted with `git archive`.
+#
 # Hours were spent treating those as defects. Worse, a phantom failure trains the
 # reader to distrust the gate, which is exactly how a REAL failure gets waved
 # through. Refusing to start is cheaper than a verdict nobody believes.
