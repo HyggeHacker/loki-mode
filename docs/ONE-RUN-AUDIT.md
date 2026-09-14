@@ -70,31 +70,52 @@ Scope it honestly: perpetual mode auto-clears PAUSE and continues
 (`autonomy/run.sh:25470-25500`), except when the pause came from budget
 enforcement. Default mode does not auto-clear.
 
-## 2. Three gates can terminate the run at exit 20, and that path never opens a PR
+## 2. Gate-stuck was the only terminal that told the user nothing (FIXED)
 
-`_loki_gate_stuck` (`autonomy/run.sh:11098`, threshold
-`LOKI_GATE_STUCK_THRESHOLD:-3`) compares a stable cause line across
-consecutive failures. When the same gate fails for the same reason three
-times, the run stops rather than grinding. It fires for three gates:
+**Partly refuted, then fixed. The original framing of this finding was wrong,
+and the correction is the useful part.**
 
-- static analysis, `autonomy/run.sh:24094-24101`
-- mock integrity, `autonomy/run.sh:24220-24227`
-- mutation integrity, `autonomy/run.sh:24266-24275`
+`_loki_gate_stuck` (threshold `LOKI_GATE_STUCK_THRESHOLD:-3`) compares a stable
+cause line across consecutive failures. When the same gate fails for the same
+reason three times the run stops rather than grinding, for static analysis,
+mock integrity and mutation integrity. Each does `save_state ... 20` then
+`return 20` out of `run_autonomous`. (Line numbers are deliberately omitted:
+every one this section originally cited had drifted before the fix landed.
+Anchor on the function names.)
 
-Each does `save_state ... 20` and `return 20` out of `run_autonomous`.
+**What was wrong with the original finding.** It claimed "the deliverable stays
+on the session branch and the user must discover and finish it by hand".
+`commit_session_changes` is commit-always by design, including on failed runs,
+and both it and `create_session_pr` are called from `main()` AFTER
+`run_autonomous` returns 20. `create_session_pr` then calls `print_pr_advice`
+(`autonomy/lib/git-pr-advisory.sh`), which prints the branch, the `git push -u`
+line and the `gh pr create` line. So the work was already committed and the push
+commands already printed. Two real bounds on that: `create_session_pr` returns
+early when there are no commits, and `commit_session_changes` only commits on a
+Loki-minted `loki/session-*` branch.
 
-Stopping a non-converging loop is correct behavior and better than grinding.
-The one-run break is what the user is left holding: `on_run_complete`, the
-function that opens the PR, is called only from the success exits
-(`autonomy/run.sh:24803`, `:25025`, `:25661`). A `return 20` leaves
-`run_autonomous` before reaching any of them, so no PR is opened. The
-deliverable stays on the session branch and the user must discover and finish
-it by hand.
+**The defect that was real.** Gate-stuck was the ONLY terminal in
+`run_autonomous` that never called `emit_completion_summary`. Every other one
+does, including the council force-stop. So it wrote no COMPLETION.txt, rendered
+no completion card, and sent no notification. A `--bg` user got no ping and
+nothing in the one file they are told to read, and `print_pr_advice` goes to a
+stdout a detached run never shows them.
 
-This mirrors a deliberate decision elsewhere: the council force-stop path at
-`autonomy/run.sh:24770` carries the comment "No on_run_complete: a force-stop
-must never open a 'done' PR." The gate-stuck path inherits that outcome
-without stating it.
+**Fixed:** all three branches now call `emit_completion_summary` with their own
+outcome, each outcome has a literal label arm in both `build_completion_summary`
+and `print_completion_card`, and the three statuses were added to the ENT-3
+terminal-failure arm so exit 20 is classified by intent rather than reached by
+fall-through (the log line previously read "crash, retryable").
+
+**Not changed, deliberately:** no PR is opened. The council force-stop carries
+the comment "No on_run_complete: a force-stop must never open a 'done' PR", and
+that precedent bans the PR while mandating the summary in the same breath. This
+applies the precedent rather than violating it.
+
+Guards: `tests/test-completion-outcome-labels.sh` (now fast-tier; its literal
+matcher is what caught a wildcard arm that rendered correctly but read as
+unlabelled), `tests/test-exit-code-contract.sh` (10 to 13 assertions), and an
+executed wiring assertion in `tests/test-terminal-next-step.sh`.
 
 ## 3. There is no cost-per-completed-task anywhere; only cost per iteration
 
@@ -271,7 +292,7 @@ Recorded so neither is raised again.
 | # | Break | Evidence | Pain |
 |---|---|---|---|
 | 1 | Gate escalation forces a PAUSE that waits forever, no timeout, no tty guard | `run.sh:24473-24477`, `run.sh:25793-25818`, defaults `run.sh:1513-1515` | Run stalls silently in `--bg`; the failing loop the demand names |
-| 2 | Gate-stuck exit 20 ends the run without opening a PR | `run.sh:11098`, `:24101`, `:24227`, `:24275`; PR only at `:24803`, `:25025`, `:25661` | Work exists on a branch the user must find and finish |
+| 2 | FIXED. Gate-stuck was the only terminal that called no `emit_completion_summary`, so it wrote no COMPLETION.txt and sent no ping | `_loki_gate_stuck` branches in `run_autonomous`; label arms in `build_completion_summary` and `print_completion_card`; ENT-3 terminal arm | A `--bg` user got no notification and nothing in the file they are told to read. No PR, deliberately: same precedent as the council force-stop |
 | 3 | No cost-per-completed-task; only per-iteration | `loki:6447`, `:6518`; cost `loki:28461` and tasks `loki:28514` never divided | "Least cost per task" is unmeasurable today |
 | 4 | No task-value-per-dollar metric | 0 hits with positive control; `loki:28535-28545` is a fixed 15-min multiplier | The demand's headline metric does not exist |
 | 5 | No-flag issue run never uses its own PR block; PR depends on a guard chain with three silent no-ops, then teardown prints advice for the PR it already opened | `loki:10762` unreached (`loki:2602`, `:10330`); `run.sh:5279`, `:5282`, `:5287-5290`; `run.sh:9175` + `git-pr-advisory.sh:69-111` | Deliverable can vanish silently on the headline use case; contradictory closing instruction |

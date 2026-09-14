@@ -409,6 +409,11 @@ declare -a _FAST_KEEP=(
   # tier -- the only tier that runs before every push. Measured ~6s (no
   # provider call, no network; the waits are bounded by `timeout`).
   "tests/test-pause-tty-and-receipt-surface.sh"
+  # The headline a user reads at the end of a run. Its matcher is strictly
+  # literal by design, so a NEWLY-added outcome fails here rather than shipping
+  # as a raw enum -- which is only useful if it runs before a push. It caught
+  # exactly that on the gate-stuck terminals. Measured 1s, no provider call.
+  "tests/test-completion-outcome-labels.sh"
   "tests/test-mcp-tool-surface-packaged.sh"   # 2.9s
   "tests/test-mcp-tool-surface-guard-rejects.sh" # 8s, proves the guard rejects
   # CLAUDE.md cleanup mandate: sub-second, and the whole point is that it runs
@@ -1482,6 +1487,7 @@ run_check "tests/test-heldout-evals.sh (held-out selection + council gate)" "bas
 # the claim exactly ONCE per iteration (check_completion_promise consumes the
 # signal); arms test _completion_claimed. Guards against the multi-call drop.
 run_check "tests/test-completion-claim.sh (completion-claim single-evaluation)" "bash tests/test-completion-claim.sh 2>&1 | tail -3"
+run_check "tests/test-completion-outcome-labels.sh (no terminal outcome renders as a raw enum)" "bash tests/test-completion-outcome-labels.sh 2>&1 | tail -6"
 
 # v7.28.0: living spec. `loki spec` lock/status/sync, drift-report.json, and the
 # SPEC_DRIFT finding surfaced by `loki verify`.

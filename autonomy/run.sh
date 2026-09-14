@@ -4423,6 +4423,20 @@ build_completion_summary() {
         # checkable receipt. Name it.
         council_force_approved) outcome_label="Completed (force-approved)"
                         notify_title="Run complete (force-approved)" ;;
+        # The three gate-stuck terminals. Spelled out one literal arm each
+        # rather than as a single wildcard pattern:
+        # tests/test-completion-outcome-labels.sh derives outcomes from the call
+        # sites and matches `^ *<outcome>\)`, so a wildcard arm renders correctly
+        # at runtime while reading as "no label arm" to the guard. Literal arms
+        # keep that guard strictly literal, which is what makes a NEWLY-added
+        # outcome fail there instead of shipping as a raw enum. Same reason the
+        # block above names each outcome.
+        gate_stuck_static_analysis) outcome_label="Stopped (static analysis gate would not clear)"
+                        notify_title="Run stopped (gate not clearing)" ;;
+        gate_stuck_mock_integrity) outcome_label="Stopped (mock integrity gate would not clear)"
+                        notify_title="Run stopped (gate not clearing)" ;;
+        gate_stuck_mutation_integrity) outcome_label="Stopped (mutation integrity gate would not clear)"
+                        notify_title="Run stopped (gate not clearing)" ;;
         *)              outcome_label="$outcome";          notify_title="Run finished" ;;
     esac
 
@@ -5244,6 +5258,12 @@ EOF
         force_stopped)   _label="Stopped (not verified-complete)" ;;
         failed)          _label="Failed" ;;
         intervention)    _label="Needs input" ;;
+        # Mirror of build_completion_summary's gate-stuck arms. Both must move
+        # together or the card and COMPLETION.txt disagree on the same run.
+        # Literal, not a glob, for the guard reason recorded there.
+        gate_stuck_static_analysis)    _label="Stopped (static analysis gate would not clear)" ;;
+        gate_stuck_mock_integrity)     _label="Stopped (mock integrity gate would not clear)" ;;
+        gate_stuck_mutation_integrity) _label="Stopped (mutation integrity gate would not clear)" ;;
         *)               _label="$_outcome" ;;
     esac
 
@@ -24221,6 +24241,14 @@ EOF
                             "gate=static_analysis" \
                             "consecutive=$sa_count" 2>/dev/null || true
                         save_state "${retry:-0}" "gate_stuck_static_analysis" 20 2>/dev/null || true
+                        # Same rule as the COUNCIL_FORCE_STOPPED terminal below
+                        # ("No on_run_complete: a force-stop must never open a
+                        # 'done' PR"): a non-verified stop never opens a PR, but
+                        # it MUST still write COMPLETION.txt and ping. Without
+                        # this, the only terminal in run_autonomous that tells
+                        # the user nothing is the one that stopped because a
+                        # gate would not clear.
+                        emit_completion_summary gate_stuck_static_analysis
                         return 20
                     fi
                 fi
@@ -24347,6 +24375,7 @@ EOF
                                 "gate=mock_integrity" \
                                 "consecutive=$mk_count" 2>/dev/null || true
                             save_state "${retry:-0}" "gate_stuck_mock_integrity" 20 2>/dev/null || true
+                            emit_completion_summary gate_stuck_mock_integrity
                             return 20
                         fi
                         ;;
@@ -24395,6 +24424,7 @@ EOF
                             "gate=mutation_integrity" \
                             "consecutive=$mt_count" 2>/dev/null || true
                         save_state "${retry:-0}" "gate_stuck_mutation_integrity" 20 2>/dev/null || true
+                        emit_completion_summary gate_stuck_mutation_integrity
                         return 20
                     fi
                 fi
@@ -27291,7 +27321,12 @@ except Exception:
             # The operator raises the cap (or narrows the spec) and submits a
             # NEW Job -- the same remedy as max_iterations_reached, which is why
             # it shares that code.
-            failed|max_iterations_reached|max_retries_exceeded|budget_exceeded|max_duration_reached|policy_blocked|inconclusive_spec_contradiction|force_stopped)
+            # gate_stuck_* is deterministic for the same reason: the same gate
+            # failed for the same reason N times, so a retry reaches the same
+            # verdict. It already arrived here as 20 via save_state, but only
+            # by falling through `*)`, which logs it as "crash, retryable" and
+            # leaves a k8s podFailurePolicy reading a value nothing asserts.
+            failed|max_iterations_reached|max_retries_exceeded|budget_exceeded|max_duration_reached|policy_blocked|inconclusive_spec_contradiction|force_stopped|gate_stuck_static_analysis|gate_stuck_mock_integrity|gate_stuck_mutation_integrity)
                 result=20 ;;
             *)
                 # Unknown/running/exited terminal: leave $result as-is (nonzero on a
