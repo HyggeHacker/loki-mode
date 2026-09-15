@@ -5,7 +5,32 @@ All notable changes to Loki Mode will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## v9.50.4
+
+**Gate-stuck was the only terminal that told the user nothing.** When the same
+quality gate failed for the same reason three times, the run stopped rather than
+grinding, which is correct. But those three exits (static analysis, mock
+integrity, mutation integrity) were the ONLY terminals in `run_autonomous` that
+never called `emit_completion_summary`. Every other one does, including the
+council force-stop. So they wrote no COMPLETION.txt, rendered no completion
+card, and sent no notification: a `--bg` user got no ping and nothing in the one
+file they are told to read.
+
+All three now write the summary with their own outcome, each outcome has a
+literal label arm in both `build_completion_summary` and
+`print_completion_card`, and the three statuses joined the ENT-3
+terminal-failure arm on BOTH routes, so exit 20 is classified by intent instead
+of falling through the arm that logs "crash, retryable".
+
+No PR is opened, deliberately. The council force-stop precedent bans the PR and
+mandates the summary in the same breath; this applies it rather than departing
+from it.
+
+This also partly refutes ONE-RUN-AUDIT finding 2, which claimed the work "stays
+on the session branch for the user to find by hand". `commit_session_changes` is
+commit-always and runs from `main()` after the 20, and `print_pr_advice` already
+prints the push and PR commands. The surviving defect was the missing summary,
+not a missing PR.
 
 **A failed PAUSED.md write was invisible (Bun route).** `handlePause` writes
 `.loki/PAUSED.md` inside a bare `catch {}`. The write goes through
