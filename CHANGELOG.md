@@ -5,7 +5,7 @@ All notable changes to Loki Mode will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v9.51.0
+## v9.51.1
 
 **A completion member could vote COMPLETE with work still in flight.** The
 council's `requirements_verifier` counted unfinished work by reading
@@ -28,6 +28,12 @@ trust-core guard at all.
 
 **Docs.** Adds `docs/ENTERPRISE-SCALE-RESEARCH-2026-09.md`, the six-desk
 enterprise research this work derives from.
+
+The v9.51.0 tag was never published. Its release run failed `required-ci`
+because the council change left a dead `pending` assignment that shellcheck
+flagged as SC2034, failing the lint step inside Shell tests. The lint is fixed
+and the repo is clean at CI's bar (423 passed, 0 failed); this is the same
+change, re-cut.
 
 ## v9.50.4
 
