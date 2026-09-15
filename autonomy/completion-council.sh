@@ -3615,7 +3615,7 @@ else:
             # Pinned by tests/test-completion-council-affirmative-evidence.sh
             # Cases 6 and 7, with Case 8 as the positive control proving this
             # can still reach COMPLETE when every queue really is empty.
-            local pending=0 unfinished=0
+            local unfinished=0
             local _q _qcount
             for _q in pending in-progress blocked; do
                 [ -f "$loki_dir/queue/${_q}.json" ] || continue
@@ -3624,7 +3624,6 @@ d = json.load(open(os.environ['_QUEUE_FILE']))
 print(len(d.get('tasks', d) if isinstance(d, dict) else d))" 2>/dev/null || echo "0")
                 # Guard against a non-numeric read (malformed file, python absent).
                 case "$_qcount" in ''|*[!0-9]*) _qcount=0 ;; esac
-                [ "$_q" = "pending" ] && pending="$_qcount"
                 if [ "$_qcount" -gt 0 ]; then
                     unfinished=$((unfinished + _qcount))
                     blocked="true"
